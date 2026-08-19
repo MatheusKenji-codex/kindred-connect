@@ -780,20 +780,135 @@ function Subpage({
               Estes limites não são aplicados automaticamente a rios e lagos.
             </small>
           </div>
-          <div className="panel settings-card">
+          <div className="panel settings-card hydrophone-settings">
             <div className="settings-card-head">
               <span>
                 <Waves />
               </span>
               <div>
-                <h3>Hidrofone</h3>
+                <h3>Configuração do hidrofone</h3>
                 <p>
-                  Sem referência científica configurada. Os limites serão definidos após a escolha
-                  do hardware.
+                  Cadastre o hardware e o método de medição antes de ativar os limites acústicos.
                 </p>
               </div>
             </div>
-            <button className="secondary">Definir limites futuramente</button>
+            <div className="hydrophone-groups">
+              <fieldset className="settings-group">
+                <legend>Hardware</legend>
+                <div className="settings-fields hardware-fields">
+                  <label>
+                    Modelo do hidrofone
+                    <input placeholder="A definir" />
+                  </label>
+                  <label>
+                    Sensibilidade
+                    <div className="input-unit">
+                      <input type="number" step="0.1" placeholder="Informe" />
+                      <span>dB re 1 V/µPa</span>
+                    </div>
+                  </label>
+                  <label>
+                    Faixa de frequência
+                    <input placeholder="Ex.: frequência mínima – máxima" />
+                  </label>
+                  <label>
+                    Ganho
+                    <div className="input-unit">
+                      <input type="number" step="0.1" placeholder="Informe" />
+                      <span>dB</span>
+                    </div>
+                  </label>
+                  <label>
+                    Frequência de amostragem
+                    <div className="input-unit">
+                      <input type="number" min="0" step="1" placeholder="Informe" />
+                      <span>Hz</span>
+                    </div>
+                  </label>
+                  <label>
+                    Profundidade
+                    <div className="input-unit">
+                      <input type="number" min="0" step="0.1" placeholder="Informe" />
+                      <span>m</span>
+                    </div>
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="settings-group">
+                <legend>Medição</legend>
+                <div className="settings-fields measurement-fields">
+                  <label>
+                    Parâmetro
+                    <select defaultValue="RMS">
+                      <option>RMS</option>
+                      <option>Peak</option>
+                      <option>Leq</option>
+                      <option>PSD</option>
+                    </select>
+                  </label>
+                  <label>
+                    Janela de medição
+                    <div className="input-unit">
+                      <input type="number" min="0" step="0.1" placeholder="Informe" />
+                      <span>s</span>
+                    </div>
+                  </label>
+                  <label>
+                    Faixa de frequência
+                    <input placeholder="Frequência mínima – máxima" />
+                  </label>
+                  <label>
+                    Unidade
+                    <select defaultValue="dB re 1 µPa">
+                      <option>dB re 1 µPa</option>
+                    </select>
+                  </label>
+                  <label>
+                    Intervalo de registro
+                    <select defaultValue="1 minuto">
+                      <option>1 segundo</option>
+                      <option>5 segundos</option>
+                      <option>10 segundos</option>
+                      <option>30 segundos</option>
+                      <option>1 minuto</option>
+                      <option>5 minutos</option>
+                      <option>10 minutos</option>
+                      <option>Personalizado</option>
+                    </select>
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="settings-group limits-group">
+                <legend>Limites</legend>
+                <p className="group-note">
+                  Preencha somente após validar as referências para o equipamento e ambiente
+                  monitorado.
+                </p>
+                <div className="settings-fields acoustic-limits">
+                  <label>
+                    Normal até
+                    <div className="input-unit">
+                      <input type="number" step="0.1" placeholder="X" />
+                      <span>dB re 1 µPa</span>
+                    </div>
+                  </label>
+                  <label>
+                    Atenção a partir de
+                    <div className="input-unit">
+                      <input type="number" step="0.1" placeholder="Y" />
+                      <span>dB re 1 µPa</span>
+                    </div>
+                  </label>
+                  <label>
+                    Crítico acima de
+                    <div className="input-unit">
+                      <input type="number" step="0.1" placeholder="Z" />
+                      <span>dB re 1 µPa</span>
+                    </div>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
           </div>
           <div className="settings-actions">
             {settingsSaved && (
