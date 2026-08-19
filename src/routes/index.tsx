@@ -29,9 +29,17 @@ import {
 
 export const Route = createFileRoute("/")({ component: Index });
 
-type Level = "normal" | "attention" | "critical" | "unconfigured";
+type Level = "normal" | "attention" | "critical" | "unconfigured" | "offline";
 type Metric = "temperature" | "ph" | "sound" | "turbidity";
 type Reading = { time: string; temperature: number; ph: number; sound: number; turbidity: number };
+type ExportOptions = {
+  period: string;
+  sensor: string;
+  includeValues: boolean;
+  includeStatus: boolean;
+  includeLocation: boolean;
+  includeDateTime: boolean;
+};
 
 const locations = [
   {
@@ -123,13 +131,26 @@ const levelText: Record<Level, string> = {
   normal: "Normal",
   attention: "Atenção",
   critical: "Crítico",
-  unconfigured: "A definir",
+  unconfigured: "Sem classificação",
+  offline: "Sem comunicação",
 };
 const levelClass: Record<Level, string> = {
   normal: "good",
   attention: "warn",
   critical: "bad",
   unconfigured: "neutral",
+  offline: "offline",
+};
+
+const overallStatus = (reading: Reading, place: string): Level => {
+  const levels = (["temperature", "ph", "turbidity"] as Metric[]).map((metric) =>
+    status(metric, reading[metric], place),
+  );
+  return levels.includes("critical")
+    ? "critical"
+    : levels.includes("attention")
+      ? "attention"
+      : "normal";
 };
 
 function Sparkline({ data, metric, color }: { data: Reading[]; metric: Metric; color: string }) {
@@ -207,8 +228,56 @@ function MetricCard({
         <span>
           Máx. <b>{Math.max(...vals)}</b>
         </span>
+        <span className="sensor-online">
+          <i /> Online · há 1 min
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function HydrophoneCard({ data }: { data: Reading[] }) {
+  const latest = data.at(-1)!;
+  const previous = data.at(-2)!;
+  const delta = latest.sound - previous.sound;
+  const trend =
+    Math.abs(delta) < 1
+      ? "→ estável"
+      : `${delta > 0 ? "↑" : "↓"} ${delta > 0 ? "+" : ""}${delta} dB`;
+  const values = data.map((reading) => reading.sound);
+
+  return (
+    <section className="metric-card hydrophone-card">
+      <div className="card-top">
+        <div className="metric-title">
+          <Waves />
+          <span>Hidrofone</span>
+        </div>
+        <span className="badge neutral">SEM CLASSIFICAÇÃO</span>
+      </div>
+      <div className="metric-value">
+        {latest.sound}
+        <small>dB re 1 µPa</small>
+      </div>
+      <p className="acoustic-context">RMS · 100 Hz–10 kHz · últimos 60 s</p>
+      <div className="classification-note">
+        <AlertTriangle size={16} />
+        <div>
+          <b>Limites não configurados</b>
+          <span>O valor está sendo registrado, mas não classificado.</span>
+        </div>
+      </div>
+      <Sparkline data={data} metric="sound" color="#789397" />
+      <div className="metric-footer">
         <span>
-          <Clock3 size={13} /> agora
+          Mín. <b>{Math.min(...values)} dB</b>
+        </span>
+        <span>
+          Máx. <b>{Math.max(...values)} dB</b>
+        </span>
+        <span className="trend-value">{trend}</span>
+        <span className="sensor-online">
+          <i /> Online · há 1 min
         </span>
       </div>
     </section>
@@ -229,14 +298,14 @@ function Index() {
   const data = samples[place];
   const latest = data.at(-1)!;
   const selected = locations.find((l) => l.id === place)!;
-  const allLevels = (["temperature", "ph", "turbidity"] as Metric[]).map((m) =>
-    status(m, latest[m], place),
+  const overall = overallStatus(latest, place);
+  const attentionMetrics = (["temperature", "ph", "turbidity"] as Metric[]).filter(
+    (metric) => status(metric, latest[metric], place) === "attention",
   );
-  const overall: Level = allLevels.includes("critical")
-    ? "critical"
-    : allLevels.includes("attention")
-      ? "attention"
-      : "normal";
+  const criticalMetrics = (["temperature", "ph", "turbidity"] as Metric[]).filter(
+    (metric) => status(metric, latest[metric], place) === "critical",
+  );
+  const affectedCount = overall === "critical" ? criticalMetrics.length : attentionMetrics.length;
   const alerts = useMemo(
     () => [
       {
@@ -250,7 +319,7 @@ function Index() {
       },
       {
         metric: "Hidrofone",
-        value: `${latest.sound} dB`,
+        value: `${latest.sound} dB re 1 µPa`,
         level: "unconfigured" as Level,
         text: "Sem limites definidos para este sensor",
       },
@@ -258,15 +327,38 @@ function Index() {
     [place, latest],
   );
   const nav = ["Dashboard", "Histórico", "Alertas", "Sensores", "Locais", "Configurações"];
-  const exportCsv = () => {
-    const csv =
-      "Data,Hora,Local,Temperatura °C,pH,Hidrofone dB,Turbidez NTU\n" +
-      data
-        .map(
-          (d) =>
-            `17/08/2026,${d.time},${selected.name},${d.temperature},${d.ph},${d.sound},${d.turbidity}`,
-        )
-        .join("\n");
+  const exportCsv = (options: ExportOptions) => {
+    const selectedMetrics =
+      options.sensor === "all"
+        ? (["temperature", "ph", "sound", "turbidity"] as Metric[])
+        : ([options.sensor] as Metric[]);
+    const headers: string[] = [];
+    if (options.includeDateTime) headers.push("Data", "Hora");
+    if (options.includeLocation) headers.push("Local");
+    if (options.includeValues) {
+      selectedMetrics.forEach((metric) =>
+        headers.push(
+          metric === "temperature"
+            ? "Temperatura °C"
+            : metric === "ph"
+              ? "pH"
+              : metric === "sound"
+                ? "Hidrofone dB re 1 µPa"
+                : "Turbidez NTU",
+        ),
+      );
+    }
+    if (options.includeStatus) headers.push("Status geral", "Status do hidrofone");
+    const rows = data.map((reading) => {
+      const cells: Array<string | number> = [];
+      if (options.includeDateTime) cells.push("17/08/2026", reading.time);
+      if (options.includeLocation) cells.push(selected.name);
+      if (options.includeValues) selectedMetrics.forEach((metric) => cells.push(reading[metric]));
+      if (options.includeStatus)
+        cells.push(levelText[overallStatus(reading, place)], levelText.unconfigured);
+      return cells.join(",");
+    });
+    const csv = [`Período,${options.period}`, headers.join(","), ...rows].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "historico-agua.csv";
@@ -369,11 +461,17 @@ function Index() {
               <div>
                 <p>STATUS GERAL DA ÁGUA</p>
                 <h2>{levelText[overall].toUpperCase()}</h2>
-                <span>
+                <span className="hero-summary">
                   {overall === "normal"
-                    ? "Parâmetros dentro das condições configuradas"
-                    : "Há parâmetros que requerem acompanhamento"}
+                    ? "Parâmetros classificados dentro das condições configuradas"
+                    : `${affectedCount} ${affectedCount === 1 ? "parâmetro requer" : "parâmetros requerem"} acompanhamento`}
                 </span>
+                <div className="hero-reasons">
+                  {status("turbidity", latest.turbidity, place) === "attention" && (
+                    <span>Turbidez: {latest.turbidity} NTU — acima da meta ideal</span>
+                  )}
+                  <span>Hidrofone: limites ainda não configurados</span>
+                </div>
               </div>
               <div className="hero-meta">
                 <span>
@@ -416,20 +514,11 @@ function Index() {
                 place={place}
                 note={
                   place === "controlled"
-                    ? "Perfil: ambiente controlado"
+                    ? "Normal < 1,0 · Atenção 1,0–5,0 · Crítico > 5,0 NTU"
                     : "Perfil com limites configuráveis"
                 }
               />
-              <MetricCard
-                title="Hidrofone"
-                icon={<Waves />}
-                value={latest.sound}
-                unit="dB"
-                metric="sound"
-                data={data}
-                place={place}
-                note="Monitoramento acústico · limites pendentes"
-              />
+              <HydrophoneCard data={data} />
             </section>
             <section className="lower-grid">
               <div className="panel chart-panel">
@@ -547,10 +636,26 @@ function Subpage({
   selected: (typeof locations)[0];
   data: Reading[];
   latest: Reading;
-  exportCsv: () => void;
+  exportCsv: (options: ExportOptions) => void;
   onAdd: () => void;
 }) {
-  const rows = data.slice().reverse();
+  const [period, setPeriod] = useState("Última hora");
+  const [sensorFilter, setSensorFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showExport, setShowExport] = useState(false);
+  const [includeValues, setIncludeValues] = useState(true);
+  const [includeStatus, setIncludeStatus] = useState(true);
+  const [includeLocation, setIncludeLocation] = useState(true);
+  const [includeDateTime, setIncludeDateTime] = useState(true);
+  const rows = data
+    .slice()
+    .reverse()
+    .filter((reading) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "unconfigured") return true;
+      return overallStatus(reading, selected.id) === statusFilter;
+    });
+  const showMetric = (metric: Metric) => sensorFilter === "all" || sensorFilter === metric;
   const [settingsSaved, setSettingsSaved] = useState(false);
   return (
     <section className="subpage">
@@ -570,7 +675,7 @@ function Subpage({
           <p>{selected.name} · dados de demonstração</p>
         </div>
         {page === "Histórico" ? (
-          <button className="primary" onClick={exportCsv}>
+          <button className="primary" onClick={() => setShowExport(true)}>
             <Download size={16} /> Exportar CSV
           </button>
         ) : page === "Locais" || page === "Sensores" ? (
@@ -581,41 +686,177 @@ function Subpage({
       </div>
       {page === "Histórico" ? (
         <div className="panel table-panel">
-          <div className="filters">
-            <button>Última hora</button>
-            <button>Todos os sensores</button>
-            <button>
-              <SlidersHorizontal size={15} /> Filtros
-            </button>
+          <div className="period-filter" aria-label="Filtro rápido de período">
+            {["Última hora", "24 horas", "7 dias", "Personalizado"].map((item) => (
+              <button
+                key={item}
+                className={period === item ? "active" : ""}
+                onClick={() => setPeriod(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+          <div className="history-filters">
+            <label>
+              Sensor
+              <select
+                value={sensorFilter}
+                onChange={(event) => setSensorFilter(event.target.value)}
+              >
+                <option value="all">Todos</option>
+                <option value="temperature">Temperatura</option>
+                <option value="ph">pH</option>
+                <option value="turbidity">Turbidez</option>
+                <option value="sound">Hidrofone</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">Todos</option>
+                <option value="normal">Normal</option>
+                <option value="attention">Atenção</option>
+                <option value="critical">Crítico</option>
+                <option value="unconfigured">Sem classificação</option>
+              </select>
+            </label>
+            <span className="filter-context">
+              <SlidersHorizontal size={15} /> {period} · {rows.length} registros
+            </span>
           </div>
           <table>
             <thead>
               <tr>
                 <th>DATA / HORA</th>
                 <th>LOCAL</th>
-                <th>TEMPERATURA</th>
-                <th>pH</th>
-                <th>HIDROFONE</th>
-                <th>TURBIDEZ</th>
-                <th>STATUS</th>
+                {showMetric("temperature") && <th>TEMPERATURA</th>}
+                {showMetric("ph") && <th>pH</th>}
+                {showMetric("sound") && <th>HIDROFONE</th>}
+                {showMetric("turbidity") && <th>TURBIDEZ</th>}
+                <th>STATUS GERAL</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.time}>
-                  <td>17 ago · {r.time}</td>
-                  <td>{selected.name}</td>
-                  <td>{r.temperature} °C</td>
-                  <td>{r.ph}</td>
-                  <td>{r.sound} dB</td>
-                  <td>{r.turbidity} NTU</td>
-                  <td>
-                    <span className="badge good">NORMAL</span>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((reading) => {
+                const rowLevel = overallStatus(reading, selected.id);
+                return (
+                  <tr key={reading.time}>
+                    <td>17 ago · {reading.time}</td>
+                    <td>{selected.name}</td>
+                    {showMetric("temperature") && <td>{reading.temperature} °C</td>}
+                    {showMetric("ph") && <td>{reading.ph}</td>}
+                    {showMetric("sound") && (
+                      <td>
+                        <span
+                          className="hydrophone-history"
+                          title={`${reading.sound} dB re 1 µPa · RMS · 100 Hz–10 kHz`}
+                        >
+                          <b>{reading.sound} dB</b>
+                          <small>⚪ Sem classificação</small>
+                        </span>
+                      </td>
+                    )}
+                    {showMetric("turbidity") && <td>{reading.turbidity} NTU</td>}
+                    <td>
+                      <span className={`badge ${levelClass[rowLevel]}`}>
+                        {levelText[rowLevel].toUpperCase()}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          {showExport && (
+            <div className="modal-backdrop" onClick={() => setShowExport(false)}>
+              <div className="modal export-modal" onClick={(event) => event.stopPropagation()}>
+                <h2>Exportar dados</h2>
+                <p>Configure o conteúdo do arquivo CSV.</p>
+                <label>
+                  Período
+                  <select value={period} onChange={(event) => setPeriod(event.target.value)}>
+                    <option>Última hora</option>
+                    <option>24 horas</option>
+                    <option>7 dias</option>
+                    <option>Personalizado</option>
+                  </select>
+                </label>
+                <label>
+                  Sensores
+                  <select
+                    value={sensorFilter}
+                    onChange={(event) => setSensorFilter(event.target.value)}
+                  >
+                    <option value="all">Todos</option>
+                    <option value="temperature">Temperatura</option>
+                    <option value="ph">pH</option>
+                    <option value="turbidity">Turbidez</option>
+                    <option value="sound">Hidrofone</option>
+                  </select>
+                </label>
+                <fieldset className="export-options">
+                  <legend>Incluir</legend>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={includeValues}
+                      onChange={(event) => setIncludeValues(event.target.checked)}
+                    />{" "}
+                    Valores
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={includeStatus}
+                      onChange={(event) => setIncludeStatus(event.target.checked)}
+                    />{" "}
+                    Status
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={includeLocation}
+                      onChange={(event) => setIncludeLocation(event.target.checked)}
+                    />{" "}
+                    Localização
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={includeDateTime}
+                      onChange={(event) => setIncludeDateTime(event.target.checked)}
+                    />{" "}
+                    Data/hora
+                  </label>
+                </fieldset>
+                <div>
+                  <button className="secondary" onClick={() => setShowExport(false)}>
+                    Cancelar
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      exportCsv({
+                        period,
+                        sensor: sensorFilter,
+                        includeValues,
+                        includeStatus,
+                        includeLocation,
+                        includeDateTime,
+                      });
+                      setShowExport(false);
+                    }}
+                  >
+                    <Download size={15} /> Exportar CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : page === "Sensores" ? (
         <div className="sensor-grid">
