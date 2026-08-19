@@ -77,21 +77,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "EcoReef | Monitoramento Ambiental" },
+      {
+        name: "description",
+        content: "Sistema inteligente de monitoramento e alerta para recifes.",
+      },
+      { name: "author", content: "EcoReef" },
+      { property: "og:title", content: "EcoReef" },
+      {
+        property: "og:description",
+        content: "Sistema inteligente de monitoramento e alerta para recifes.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/ecoreef-logo.png", type: "image/png" },
     ],
   }),
   shellComponent: RootShell,
