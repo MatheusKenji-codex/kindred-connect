@@ -4,6 +4,9 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,11 +15,13 @@ import {
 import {
   Activity,
   AlertTriangle,
+  BatteryMedium,
   Bell,
   ChevronDown,
   Clock3,
   Cloud,
   Download,
+  Info,
   MapPin,
   Menu,
   Plus,
@@ -24,6 +29,7 @@ import {
   Settings,
   SlidersHorizontal,
   Thermometer,
+  Wifi,
   Waves,
 } from "lucide-react";
 
@@ -316,12 +322,14 @@ function Index() {
           place === "controlled"
             ? "Acima da meta ideal configurada"
             : "Limites dependem do perfil do ambiente",
+        kind: "alert" as const,
       },
       {
         metric: "Hidrofone",
         value: `${latest.sound} dB re 1 µPa`,
         level: "unconfigured" as Level,
-        text: "Sem limites definidos para este sensor",
+        text: "Configuração pendente · valor registrado sem classificação",
+        kind: "info" as const,
       },
     ],
     [place, latest],
@@ -400,7 +408,7 @@ function Index() {
                 <Settings />
               )}
               {item}
-              {item === "Alertas" && <i>2</i>}
+              {item === "Alertas" && <i title="1 alerta ativo">1</i>}
             </button>
           ))}
         </nav>
@@ -424,9 +432,9 @@ function Index() {
             <span className="live">
               <span className="pulse" /> Conexão ativa
             </span>
-            <button className="icon-button">
+            <button className="icon-button" title="1 alerta ativo e 1 informação pendente">
               <Bell size={19} />
-              <b>2</b>
+              <b>1</b>
             </button>
             <div className="avatar">AM</div>
           </div>
@@ -483,6 +491,54 @@ function Index() {
                 </span>
               </div>
             </section>
+            <section className="panel status-overview" aria-label="Resumo dos parâmetros">
+              <div className="overview-head">
+                <div>
+                  <p>LEITURA RÁPIDA</p>
+                  <h3>Situação dos parâmetros</h3>
+                </div>
+                <span>4 sensores · atualização há 1 min</span>
+              </div>
+              <div className="overview-table">
+                {[
+                  {
+                    label: "Temperatura",
+                    value: `${latest.temperature.toFixed(1).replace(".", ",")} °C`,
+                    level: status("temperature", latest.temperature, place),
+                    icon: <Thermometer />,
+                  },
+                  {
+                    label: "pH",
+                    value: latest.ph.toFixed(1).replace(".", ","),
+                    level: status("ph", latest.ph, place),
+                    icon: <Activity />,
+                  },
+                  {
+                    label: "Turbidez",
+                    value: `${latest.turbidity.toFixed(1).replace(".", ",")} NTU`,
+                    level: status("turbidity", latest.turbidity, place),
+                    icon: <Cloud />,
+                  },
+                  {
+                    label: "Hidrofone",
+                    value: `${latest.sound} dB re 1 µPa`,
+                    level: "unconfigured" as Level,
+                    icon: <Waves />,
+                  },
+                ].map((item) => (
+                  <div className="overview-row" key={item.label}>
+                    <span className="overview-sensor">
+                      {item.icon}
+                      {item.label}
+                    </span>
+                    <b>{item.value}</b>
+                    <span className={`badge ${levelClass[item.level]}`}>
+                      {levelText[item.level].toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
             <section className="metrics">
               <MetricCard
                 title="Temperatura"
@@ -520,6 +576,22 @@ function Index() {
               />
               <HydrophoneCard data={data} />
             </section>
+            {status("turbidity", latest.turbidity, place) === "attention" && (
+              <section className="decision-callout">
+                <div className="decision-icon">
+                  <AlertTriangle />
+                </div>
+                <div className="decision-main">
+                  <p>ATENÇÃO — TURBIDEZ ELEVADA</p>
+                  <h3>{latest.turbidity.toFixed(1).replace(".", ",")} NTU</h3>
+                  <span>Limite ideal: &lt; 1,0 NTU</span>
+                </div>
+                <div className="decision-detail">
+                  <b>📈 Tendência: estável</b>
+                  <span>Recomendação: acompanhar as próximas leituras.</span>
+                </div>
+              </section>
+            )}
             <section className="lower-grid">
               <div className="panel chart-panel">
                 <div className="panel-head">
@@ -561,13 +633,17 @@ function Index() {
                 <div className="panel-head">
                   <div>
                     <h3>Alertas recentes</h3>
-                    <p>Monitoramento ativo</p>
+                    <p>1 alerta ativo · 1 informativo</p>
                   </div>
                   <button onClick={() => setPage("Alertas")}>Ver todos</button>
                 </div>
                 {alerts.map((a, i) => (
-                  <div className="alert-row" key={i}>
-                    <span className={`alert-symbol ${levelClass[a.level]}`}>!</span>
+                  <div className={`alert-row ${a.kind === "info" ? "informative" : ""}`} key={i}>
+                    <span
+                      className={`alert-symbol ${a.kind === "info" ? "info" : levelClass[a.level]}`}
+                    >
+                      {a.kind === "info" ? <Info size={13} /> : "!"}
+                    </span>
                     <div>
                       <b>
                         {a.metric}: {a.value}
@@ -587,10 +663,37 @@ function Index() {
             data={data}
             latest={latest}
             exportCsv={exportCsv}
+            onLocationChange={setPlace}
             onAdd={() => setShowAdd(true)}
           />
         )}
       </div>
+      <nav className="mobile-nav" aria-label="Navegação móvel">
+        {nav.map((item) => (
+          <button
+            key={item}
+            className={page === item ? "active" : ""}
+            onClick={() => setPage(item)}
+            title={item}
+          >
+            {item === "Dashboard" ? (
+              <Activity />
+            ) : item === "Histórico" ? (
+              <Clock3 />
+            ) : item === "Alertas" ? (
+              <Bell />
+            ) : item === "Sensores" ? (
+              <Radio />
+            ) : item === "Locais" ? (
+              <MapPin />
+            ) : (
+              <Settings />
+            )}
+            <span>{item}</span>
+            {item === "Alertas" && <i>1</i>}
+          </button>
+        ))}
+      </nav>
       {showAdd && (
         <div className="modal-backdrop" onClick={() => setShowAdd(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -630,6 +733,7 @@ function Subpage({
   data,
   latest,
   exportCsv,
+  onLocationChange,
   onAdd,
 }: {
   page: string;
@@ -637,6 +741,7 @@ function Subpage({
   data: Reading[];
   latest: Reading;
   exportCsv: (options: ExportOptions) => void;
+  onLocationChange: (locationId: string) => void;
   onAdd: () => void;
 }) {
   const [period, setPeriod] = useState("Última hora");
@@ -686,6 +791,50 @@ function Subpage({
       </div>
       {page === "Histórico" ? (
         <div className="panel table-panel">
+          <div className="history-chart-block">
+            <div className="panel-head">
+              <div>
+                <h3>Análise temporal comparativa</h3>
+                <p>Temperatura, pH e turbidez · {period}</p>
+              </div>
+              <span className="badge neutral">INTERATIVO</span>
+            </div>
+            <div className="history-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <CartesianGrid vertical={false} stroke="#e2ecec" />
+                  <XAxis dataKey="time" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="temperature"
+                    name="Temperatura °C"
+                    stroke="#ef8b4d"
+                    strokeWidth={2.2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ph"
+                    name="pH"
+                    stroke="#158f9b"
+                    strokeWidth={2.2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="turbidity"
+                    name="Turbidez NTU"
+                    stroke="#d49a25"
+                    strokeWidth={2.2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
           <div className="period-filter" aria-label="Filtro rápido de período">
             {["Última hora", "24 horas", "7 dias", "Personalizado"].map((item) => (
               <button
@@ -698,6 +847,19 @@ function Subpage({
             ))}
           </div>
           <div className="history-filters">
+            <label>
+              Local
+              <select
+                value={selected.id}
+                onChange={(event) => onLocationChange(event.target.value)}
+              >
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Sensor
               <select
@@ -861,50 +1023,163 @@ function Subpage({
       ) : page === "Sensores" ? (
         <div className="sensor-grid">
           {[
-            ["pH", "Eletrodo de vidro / pHmetro", "Aguardando integração"],
-            ["Temperatura", "DS18B20", "ONLINE"],
-            ["Hidrofone", "Modelo a definir", "Aguardando integração"],
-            ["Turbidez", "Modelo a definir", "Aguardando integração"],
-          ].map(([name, model, state]) => (
-            <div className="panel sensor" key={name}>
-              <Radio />
-              <h3>{name}</h3>
-              <p>{model}</p>
-              <span className={state === "ONLINE" ? "badge good" : "badge neutral"}>{state}</span>
+            {
+              name: "Temperatura",
+              model: "DS18B20",
+              value: `${latest.temperature.toFixed(1).replace(".", ",")} °C`,
+              level: status("temperature", latest.temperature, selected.id),
+              battery: "87%",
+            },
+            {
+              name: "pH",
+              model: "Eletrodo de vidro / pHmetro",
+              value: latest.ph.toFixed(1).replace(".", ","),
+              level: status("ph", latest.ph, selected.id),
+              battery: "Não informado",
+            },
+            {
+              name: "Turbidez",
+              model: "Modelo a definir",
+              value: `${latest.turbidity.toFixed(1).replace(".", ",")} NTU`,
+              level: status("turbidity", latest.turbidity, selected.id),
+              battery: "Não informado",
+            },
+            {
+              name: "Hidrofone",
+              model: "Modelo a definir",
+              value: `${latest.sound} dB re 1 µPa`,
+              level: "unconfigured" as Level,
+              battery: "Não informado",
+            },
+          ].map((sensor) => (
+            <div className="panel sensor sensor-detail" key={sensor.name}>
+              <div className="sensor-card-top">
+                <span className="sensor-icon">
+                  <Radio />
+                </span>
+                <span className="connectivity-badge">
+                  <i /> ONLINE
+                </span>
+              </div>
+              <h3>{sensor.name}</h3>
+              <p>{sensor.model}</p>
+              <div className="sensor-reading">{sensor.value}</div>
+              <span className={`badge ${levelClass[sensor.level]}`}>
+                {levelText[sensor.level].toUpperCase()}
+              </span>
+              <div className="sensor-meta">
+                <span>
+                  <Clock3 />
+                  Última leitura <b>há 1 min</b>
+                </span>
+                <span>
+                  <Wifi />
+                  Última comunicação <b>há 1 min</b>
+                </span>
+                <span>
+                  <Activity />
+                  Intervalo <b>1 minuto</b>
+                </span>
+                <span>
+                  <BatteryMedium />
+                  Bateria <b>{sensor.battery}</b>
+                </span>
+              </div>
               <small>{selected.name}</small>
             </div>
           ))}
         </div>
       ) : page === "Locais" ? (
         <div className="locations-grid">
-          {locations.map((l, i) => (
-            <div className="panel location" key={l.id}>
-              <div className={`map-dot ${i === 0 ? "good" : "warn"}`} />
-              <h3>{l.name}</h3>
-              <p>
-                {l.type} · Perfil {l.profile}
-              </p>
-              <span>4 sensores associados</span>
-            </div>
-          ))}
+          {locations.map((location) => {
+            const reading = samples[location.id].at(-1)!;
+            const locationLevel = overallStatus(reading, location.id);
+            const levels = (["temperature", "ph", "turbidity"] as Metric[]).map((metric) =>
+              status(metric, reading[metric], location.id),
+            );
+            const normalCount = levels.filter((level) => level === "normal").length;
+            const attentionCount = levels.filter((level) => level === "attention").length;
+            const unconfiguredCount = levels.filter((level) => level === "unconfigured").length + 1;
+            return (
+              <div className="panel location location-detail" key={location.id}>
+                <div className="location-card-top">
+                  <span className={`location-operational ${levelClass[locationLevel]}`}>
+                    <i />
+                    {locationLevel === "normal"
+                      ? "OPERACIONAL"
+                      : levelText[locationLevel].toUpperCase()}
+                  </span>
+                  <MapPin />
+                </div>
+                <h3>{location.name}</h3>
+                <p>
+                  {location.type} · Perfil {location.profile}
+                </p>
+                <div className="location-summary">
+                  <span>
+                    <b>4</b> sensores
+                  </span>
+                  <span>
+                    <b>{normalCount}</b> normais
+                  </span>
+                  <span>
+                    <b>{attentionCount}</b> atenção
+                  </span>
+                  <span>
+                    <b>{unconfiguredCount}</b> sem classificação
+                  </span>
+                </div>
+                <div className="location-updated">
+                  <Clock3 />
+                  Última atualização: há 1 min
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : page === "Alertas" ? (
-        <div className="panel alert-list">
-          <div className="alert-row">
-            <span className="alert-symbol warn">!</span>
-            <div>
-              <b>Turbidez em atenção: {latest.turbidity} NTU</b>
-              <p>Ambiente Controlado 01 · agora · Novo</p>
+        <div className="alerts-workspace">
+          <div className="alert-counters">
+            <div className="counter-card warn">
+              <b>1</b>
+              <span>Alerta ativo</span>
             </div>
-            <button className="secondary">Visualizado</button>
+            <div className="counter-card info">
+              <b>1</b>
+              <span>Configuração pendente</span>
+            </div>
+            <div className="counter-card good">
+              <b>0</b>
+              <span>Críticos</span>
+            </div>
           </div>
-          <div className="alert-row">
-            <span className="alert-symbol neutral">i</span>
-            <div>
-              <b>Hidrofone sem limites configurados</b>
-              <p>Defina parâmetros de referência nas configurações.</p>
+          <div className="panel alert-list">
+            <div className="alert-section-title">
+              <span className="badge warn">ATENÇÃO</span>
+              <p>Ocorrências ambientais que exigem acompanhamento</p>
             </div>
-            <button className="secondary">Configurar</button>
+            <div className="alert-row">
+              <span className="alert-symbol warn">!</span>
+              <div>
+                <b>Turbidez em atenção: {latest.turbidity} NTU</b>
+                <p>{selected.name} · acima da meta ideal de 1,0 NTU · agora</p>
+              </div>
+              <button className="secondary">Visualizado</button>
+            </div>
+            <div className="alert-section-title information">
+              <span className="badge info">INFORMATIVO</span>
+              <p>Pendências de configuração — não representam problema ambiental</p>
+            </div>
+            <div className="alert-row informative">
+              <span className="alert-symbol info">
+                <Info size={13} />
+              </span>
+              <div>
+                <b>Hidrofone funcionando sem classificação</b>
+                <p>51 dB re 1 µPa está sendo registrado; defina os limites para classificar.</p>
+              </div>
+              <button className="secondary">Configurar</button>
+            </div>
           </div>
         </div>
       ) : (
@@ -918,6 +1193,11 @@ function Subpage({
                 <h3>Temperatura · DS18B20</h3>
                 <p>Limites fixados conforme a regra definida para o projeto.</p>
               </div>
+            </div>
+            <div className="threshold-summary">
+              <span className="bad">Crítico: &lt; 24,0 ou ≥ 30,0 °C</span>
+              <span className="good">Normal: 24,0–28,0 °C</span>
+              <span className="warn">Atenção: &gt; 28,0–&lt; 30,0 °C</span>
             </div>
             <div className="limit-row">
               <label>
@@ -953,6 +1233,11 @@ function Subpage({
                 <p>Referências configuráveis para o ambiente selecionado.</p>
               </div>
             </div>
+            <div className="threshold-summary">
+              <span className="good">Normal: 6,0–8,5</span>
+              <span className="warn">Atenção: &gt; 8,5–9,5</span>
+              <span className="bad">Crítico: &lt; 6,0 ou &gt; 9,5</span>
+            </div>
             <div className="limit-row ph-limits">
               <label>
                 Normal a partir de
@@ -982,6 +1267,11 @@ function Subpage({
                 <h3>Sensor de turbidez</h3>
                 <p>Os limites variam conforme o perfil de monitoramento.</p>
               </div>
+            </div>
+            <div className="threshold-summary">
+              <span className="good">Normal: &lt; 1,0 NTU</span>
+              <span className="warn">Atenção: 1,0–5,0 NTU</span>
+              <span className="bad">Crítico: &gt; 5,0 NTU</span>
             </div>
             <label className="profile-field">
               Perfil do ambiente
