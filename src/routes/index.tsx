@@ -22,7 +22,12 @@ import {
   Clock3,
   Cloud,
   Download,
+  Eye,
+  EyeOff,
   Info,
+  Lock,
+  LogOut,
+  Mail,
   MapPin,
   Menu,
   Plus,
@@ -30,6 +35,7 @@ import {
   Settings,
   SlidersHorizontal,
   Thermometer,
+  User,
   Wifi,
   Waves,
 } from "lucide-react";
@@ -297,6 +303,169 @@ function HydrophoneCard({ data }: { data: Reading[] }) {
   );
 }
 
+function LoginScreen({ onLogin }: { onLogin: (remember: boolean) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [recovery, setRecovery] = useState(false);
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setRecovery(false);
+    setLoading(true);
+    window.setTimeout(() => {
+      if (email.trim().toLowerCase() === "admin@ecoreef.com.br" && password === "EcoReef2026") {
+        onLogin(remember);
+        return;
+      }
+      setLoading(false);
+      setError("E-mail ou senha incorretos.");
+    }, 850);
+  };
+
+  return (
+    <main className="login-page">
+      <section className="login-identity" aria-label="Identidade EcoReef">
+        <div className="login-brand">
+          <img src="/ecoreef-logo.png" alt="Símbolo EcoReef" />
+          <img src="/ecoreef-wordmark.png" alt="EcoReef" />
+        </div>
+        <div className="aquatic-visual" aria-hidden="true">
+          <span className="sonar-ring ring-one" />
+          <span className="sonar-ring ring-two" />
+          <div className="monitor-node node-one">
+            <Radio />
+          </div>
+          <div className="monitor-node node-two">
+            <Activity />
+          </div>
+          <div className="monitor-node node-three">
+            <Waves />
+          </div>
+          <div className="water-line water-one" />
+          <div className="water-line water-two" />
+          <div className="reef-shape reef-one" />
+          <div className="reef-shape reef-two" />
+        </div>
+        <div className="login-message">
+          <p>TECNOLOGIA PARA PRESERVAR</p>
+          <h1>Monitoramento inteligente para ambientes aquáticos.</h1>
+          <span>Dados ambientais claros para decisões mais rápidas e responsáveis.</span>
+        </div>
+        <div className="system-operational">
+          <i /> Sistema operacional
+        </div>
+      </section>
+
+      <section className="login-access">
+        <div className="login-card">
+          <div className="login-mobile-brand">
+            <img src="/ecoreef-logo.png" alt="EcoReef" />
+            <strong>ecoreef</strong>
+          </div>
+          <div className="login-heading">
+            <p>CENTRAL DE MONITORAMENTO</p>
+            <h2>Bem-vindo ao EcoReef</h2>
+            <span>Acesse sua Central de Monitoramento</span>
+          </div>
+          <form onSubmit={submit} noValidate>
+            <label htmlFor="login-email">E-mail</label>
+            <div className="auth-input">
+              <Mail />
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                placeholder="Digite seu e-mail"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={loading}
+                required
+              />
+            </div>
+            <label htmlFor="login-password">Senha</label>
+            <div className="auth-input">
+              <Lock />
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Digite sua senha"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={loading}
+                required
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {showPassword ? <EyeOff /> : <Eye />}
+              </button>
+            </div>
+            <div className="login-options">
+              <label className="remember-option">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(event) => setRemember(event.target.checked)}
+                />
+                Lembrar de mim
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setRecovery(true);
+                  setError("");
+                }}
+              >
+                Esqueci minha senha
+              </button>
+            </div>
+            {error && (
+              <div className="login-feedback error">
+                <AlertTriangle /> {error}
+              </div>
+            )}
+            {recovery && (
+              <div className="login-feedback information">
+                <Info /> Contate o administrador do EcoReef para redefinir seu acesso.
+              </div>
+            )}
+            <button
+              className="login-submit"
+              type="submit"
+              disabled={loading || !email || !password}
+            >
+              {loading ? (
+                <>
+                  <span className="login-spinner" /> Entrando na Central...
+                </>
+              ) : (
+                "ENTRAR"
+              )}
+            </button>
+          </form>
+          <div className="demo-credentials">
+            <span>Acesso de demonstração</span>
+            <b>admin@ecoreef.com.br</b>
+            <code>EcoReef2026</code>
+          </div>
+          <small className="login-security">
+            <Lock /> Ambiente protegido · EcoReef v1.0
+          </small>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function Index() {
   const [place, setPlace] = useState("controlled");
   const [page, setPage] = useState("Dashboard");
@@ -305,10 +474,32 @@ function Index() {
   const [mobile, setMobile] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [activeMetric, setActiveMetric] = useState<Metric>("temperature");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+  useEffect(() => {
+    setAuthenticated(
+      window.localStorage.getItem("ecoreef-auth") === "active" ||
+        window.sessionStorage.getItem("ecoreef-auth") === "active",
+    );
+    setAuthReady(true);
+  }, []);
+  const login = (remember: boolean) => {
+    const storage = remember ? window.localStorage : window.sessionStorage;
+    storage.setItem("ecoreef-auth", "active");
+    setAuthenticated(true);
+  };
+  const logout = () => {
+    window.localStorage.removeItem("ecoreef-auth");
+    window.sessionStorage.removeItem("ecoreef-auth");
+    setUserMenuOpen(false);
+    setAuthenticated(false);
+  };
   const data = samples[place];
   const latest = data.at(-1)!;
   const selected = locations.find((l) => l.id === place)!;
@@ -389,6 +580,16 @@ function Index() {
     a.click();
     URL.revokeObjectURL(a.href);
   };
+  if (!authReady) {
+    return (
+      <main className="auth-boot">
+        <img src="/ecoreef-logo.png" alt="EcoReef" />
+        <span className="login-spinner" />
+      </main>
+    );
+  }
+  if (!authenticated) return <LoginScreen onLogin={login} />;
+
   return (
     <main className="app-shell">
       <aside className={mobile ? "sidebar open" : "sidebar"}>
@@ -457,7 +658,47 @@ function Index() {
               <Bell size={19} />
               <b>1</b>
             </button>
-            <div className="avatar">AM</div>
+            <div className="user-menu">
+              <button
+                className="user-trigger"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                aria-expanded={userMenuOpen}
+                aria-label="Abrir menu do usuário"
+              >
+                <span className="avatar">AM</span>
+                <ChevronDown />
+              </button>
+              {userMenuOpen && (
+                <div className="user-dropdown">
+                  <div className="user-summary">
+                    <span className="avatar">AM</span>
+                    <div>
+                      <b>Administrador</b>
+                      <small>admin@ecoreef.com.br</small>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowProfile(true);
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    <User /> Meu perfil
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPage("Configurações");
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    <Settings /> Configurações
+                  </button>
+                  <button className="logout-button" onClick={logout}>
+                    <LogOut /> Sair
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         {page === "Dashboard" ? (
@@ -805,6 +1046,31 @@ function Index() {
               </button>
               <button className="primary" onClick={() => setShowAdd(false)}>
                 Salvar local
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showProfile && (
+        <div className="modal-backdrop" onClick={() => setShowProfile(false)}>
+          <div className="modal profile-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="profile-avatar">AM</div>
+            <h2>Administrador EcoReef</h2>
+            <p>admin@ecoreef.com.br</p>
+            <div className="profile-details">
+              <span>
+                <b>Perfil</b> Administrador
+              </span>
+              <span>
+                <b>Unidade</b> Ambiente Controlado 01
+              </span>
+              <span>
+                <b>Status</b> <i /> Acesso ativo
+              </span>
+            </div>
+            <div>
+              <button className="primary" onClick={() => setShowProfile(false)}>
+                Fechar
               </button>
             </div>
           </div>
