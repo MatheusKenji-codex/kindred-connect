@@ -7,6 +7,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -110,6 +111,12 @@ const samples: Record<string, Reading[]> = {
   })),
 };
 const limits = { temperature: [24, 28, 30], ph: [6, 8.5, 9.5], turbidity: [1, 5] };
+const chartConfig: Record<Metric, { label: string; unit: string; color: string }> = {
+  temperature: { label: "Temperatura", unit: "°C", color: "#0b9aa5" },
+  ph: { label: "pH", unit: "pH", color: "#2e8b70" },
+  turbidity: { label: "Turbidez", unit: "NTU", color: "#d18a18" },
+  sound: { label: "Hidrofone", unit: "dB re 1 µPa", color: "#3478a0" },
+};
 const status = (metric: Metric, value: number, place: string): Level => {
   if (metric === "temperature")
     return value < limits.temperature[0] || value >= limits.temperature[2]
@@ -297,6 +304,7 @@ function Index() {
   const [now, setNow] = useState(new Date());
   const [mobile, setMobile] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [activeMetric, setActiveMetric] = useState<Metric>("temperature");
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -305,6 +313,14 @@ function Index() {
   const latest = data.at(-1)!;
   const selected = locations.find((l) => l.id === place)!;
   const overall = overallStatus(latest, place);
+  const qualityScore = overall === "critical" ? 42 : overall === "attention" ? 86 : 94;
+  const qualityLabel =
+    overall === "critical"
+      ? "Condição crítica"
+      : overall === "attention"
+        ? "Boa condição"
+        : "Excelente condição";
+  const activeChart = chartConfig[activeMetric];
   const attentionMetrics = (["temperature", "ph", "turbidity"] as Metric[]).filter(
     (metric) => status(metric, latest[metric], place) === "attention",
   );
@@ -384,32 +400,37 @@ function Index() {
             alt="EcoReef — Sistema Inteligente de Alerta para Recifes"
           />
         </div>
-        <nav>
+        <nav className="sidebar-nav">
           {nav.map((item) => (
-            <button
+            <div
+              className={item === "Configurações" ? "nav-item-wrap nav-settings" : "nav-item-wrap"}
               key={item}
-              className={page === item ? "active" : ""}
-              onClick={() => {
-                setPage(item);
-                setMobile(false);
-              }}
             >
-              {item === "Dashboard" ? (
-                <Activity />
-              ) : item === "Histórico" ? (
-                <Clock3 />
-              ) : item === "Alertas" ? (
-                <Bell />
-              ) : item === "Sensores" ? (
-                <Radio />
-              ) : item === "Locais" ? (
-                <MapPin />
-              ) : (
-                <Settings />
-              )}
-              {item}
-              {item === "Alertas" && <i title="1 alerta ativo">1</i>}
-            </button>
+              {item === "Configurações" && <span className="nav-section-label">GERENCIAMENTO</span>}
+              <button
+                className={page === item ? "active" : ""}
+                onClick={() => {
+                  setPage(item);
+                  setMobile(false);
+                }}
+              >
+                {item === "Dashboard" ? (
+                  <Activity />
+                ) : item === "Histórico" ? (
+                  <Clock3 />
+                ) : item === "Alertas" ? (
+                  <Bell />
+                ) : item === "Sensores" ? (
+                  <Radio />
+                ) : item === "Locais" ? (
+                  <MapPin />
+                ) : (
+                  <Settings />
+                )}
+                {item}
+                {item === "Alertas" && <i title="1 alerta ativo">1</i>}
+              </button>
+            </div>
           ))}
         </nav>
         <div className="sidebar-bottom">
@@ -464,31 +485,52 @@ function Index() {
                 </button>
               </div>
             </div>
-            <section className={`status-hero ${levelClass[overall]}`}>
-              <div className="status-orb">{overall === "normal" ? "✓" : "!"}</div>
-              <div>
-                <p>STATUS GERAL DA ÁGUA</p>
-                <h2>{levelText[overall].toUpperCase()}</h2>
-                <span className="hero-summary">
-                  {overall === "normal"
-                    ? "Parâmetros classificados dentro das condições configuradas"
-                    : `${affectedCount} ${affectedCount === 1 ? "parâmetro requer" : "parâmetros requerem"} acompanhamento`}
-                </span>
-                <div className="hero-reasons">
-                  {status("turbidity", latest.turbidity, place) === "attention" && (
-                    <span>Turbidez: {latest.turbidity} NTU — acima da meta ideal</span>
-                  )}
-                  <span>Hidrofone: limites ainda não configurados</span>
+            <section className="status-grid">
+              <div className={`status-hero ${levelClass[overall]}`}>
+                <div className="status-orb">{overall === "normal" ? "✓" : "!"}</div>
+                <div>
+                  <p>STATUS GERAL DA ÁGUA</p>
+                  <h2>{levelText[overall].toUpperCase()}</h2>
+                  <span className="hero-summary">
+                    {overall === "normal"
+                      ? "Parâmetros classificados dentro das condições configuradas"
+                      : `${affectedCount} ${affectedCount === 1 ? "parâmetro requer" : "parâmetros requerem"} acompanhamento`}
+                  </span>
+                  <div className="hero-reasons">
+                    {status("turbidity", latest.turbidity, place) === "attention" && (
+                      <span>Turbidez: {latest.turbidity} NTU — acima da meta ideal</span>
+                    )}
+                    <span>Hidrofone: limites ainda não configurados</span>
+                  </div>
+                </div>
+                <div className="hero-meta">
+                  <span>
+                    <Clock3 /> Atualizado agora
+                  </span>
+                  <span>
+                    {now.toLocaleDateString("pt-BR")} ·{" "}
+                    {now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
                 </div>
               </div>
-              <div className="hero-meta">
-                <span>
-                  <Clock3 /> Atualizado agora
-                </span>
-                <span>
-                  {now.toLocaleDateString("pt-BR")} ·{" "}
-                  {now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                </span>
+              <div className="quality-card panel">
+                <div
+                  className="quality-ring"
+                  style={{ "--score": qualityScore } as React.CSSProperties}
+                >
+                  <div>
+                    <strong>{qualityScore}</strong>
+                    <span>/ 100</span>
+                  </div>
+                </div>
+                <div className="quality-copy">
+                  <p>ÍNDICE ECOREEF</p>
+                  <h3>Qualidade ambiental</h3>
+                  <span className={`badge ${levelClass[overall]}`}>
+                    {qualityLabel.toUpperCase()}
+                  </span>
+                  <small>Calculado a partir dos parâmetros classificados.</small>
+                </div>
               </div>
             </section>
             <section className="panel status-overview" aria-label="Resumo dos parâmetros">
@@ -592,38 +634,74 @@ function Index() {
                 </div>
               </section>
             )}
-            <section className="lower-grid">
-              <div className="panel chart-panel">
+            <section className="lower-grid monitoring-grid">
+              <div className="panel chart-panel realtime-panel">
                 <div className="panel-head">
                   <div>
-                    <h3>Visão temporal</h3>
+                    <p className="section-kicker">MONITORAMENTO EM TEMPO REAL</p>
+                    <h3>{activeChart.label}</h3>
                     <p>Última hora · {selected.name}</p>
                   </div>
-                  <select>
-                    <option>Temperatura</option>
-                    <option>pH</option>
-                    <option>Turbidez</option>
-                  </select>
+                  <div className="current-reading">
+                    <span>LEITURA ATUAL</span>
+                    <b>
+                      {latest[activeMetric].toLocaleString("pt-BR", { maximumFractionDigits: 1 })}{" "}
+                      <small>{activeChart.unit}</small>
+                    </b>
+                  </div>
+                </div>
+                <div
+                  className="metric-tabs"
+                  role="tablist"
+                  aria-label="Selecionar parâmetro do gráfico"
+                >
+                  {(Object.keys(chartConfig) as Metric[]).map((metric) => (
+                    <button
+                      key={metric}
+                      className={activeMetric === metric ? "active" : ""}
+                      onClick={() => setActiveMetric(metric)}
+                    >
+                      {chartConfig[metric].label}
+                    </button>
+                  ))}
                 </div>
                 <div className="big-chart">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data}>
                       <defs>
                         <linearGradient id="big" x1="0" x2="0" y1="0" y2="1">
-                          <stop stopColor="#27b6d0" stopOpacity=".35" />
-                          <stop offset="1" stopColor="#27b6d0" stopOpacity="0" />
+                          <stop stopColor={activeChart.color} stopOpacity=".3" />
+                          <stop offset="1" stopColor={activeChart.color} stopOpacity="0" />
                         </linearGradient>
                       </defs>
                       <CartesianGrid vertical={false} stroke="#dfecef" />
                       <XAxis dataKey="time" tickLine={false} axisLine={false} />
-                      <YAxis domain={[23, 31]} tickLine={false} axisLine={false} />
-                      <Tooltip />
+                      <YAxis
+                        domain={["dataMin - 1", "dataMax + 1"]}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        formatter={(value) => [`${value} ${activeChart.unit}`, activeChart.label]}
+                      />
+                      <ReferenceLine
+                        x={latest.time}
+                        stroke={activeChart.color}
+                        strokeDasharray="4 4"
+                        label={{
+                          value: "Agora",
+                          position: "insideTopRight",
+                          fill: activeChart.color,
+                          fontSize: 10,
+                        }}
+                      />
                       <Area
                         type="monotone"
-                        dataKey="temperature"
-                        stroke="#0899b7"
+                        dataKey={activeMetric}
+                        stroke={activeChart.color}
                         strokeWidth={3}
                         fill="url(#big)"
+                        animationDuration={650}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -646,11 +724,20 @@ function Index() {
                     </span>
                     <div>
                       <b>
-                        {a.metric}: {a.value}
+                        {a.kind === "alert"
+                          ? `${a.metric} acima do ideal`
+                          : `${a.metric}: configuração pendente`}
                       </b>
-                      <p>{a.text}</p>
+                      <p>
+                        {a.value} · {a.text}
+                      </p>
+                      {a.kind === "alert" && (
+                        <button className="alert-link" onClick={() => setPage("Histórico")}>
+                          Ver histórico →
+                        </button>
+                      )}
                     </div>
-                    <small>agora</small>
+                    <small>há 2 min</small>
                   </div>
                 ))}
               </div>
